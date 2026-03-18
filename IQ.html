@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" style="background-color: #000000;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#000000" id="theme-color-meta">
+
+    <title>IQ TV</title>
+    
+    <script>
+        // تطبيق الثيم فوراً في أول جزء من الثانية قبل رسم أي شيء في الشاشة
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+            document.documentElement.style.setProperty('background-color', '#E6E7E9', 'important');
+            const metaTheme = document.getElementById('theme-color-meta');
+            if(metaTheme) metaTheme.setAttribute('content', '#E6E7E9');
+        }
+    </script>
+
+    <style>
+        /* إيقاف الأنيميشن عند التحميل لمنع أي تداخل أو وميض */
+        body.no-transition, body.no-transition * {
+            transition: none !important;
+            animation: none !important;
+        }
+
+        /* --- المتغيرات للوضع الليلي والنهاري --- */
+        :root {
+            --bg-color: #000000;
+            --text-color: #ffffff;
+            --header-bg: #212121; 
+            --header-content-color: #B9B9B9; 
+            --card-overlay: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+            --menu-bg: rgba(33, 33, 33, 0.9);
+            --menu-text: #ffffff;
+            --menu-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            --hover-bg: rgba(255, 255, 255, 0.1);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary-color: #e50914; 
+            --click-overlay: rgba(255, 255, 255, 0.2);
+            --match-bg: #1e1e1e;
+            --match-time-bg: #333333;
+            --toggle-bg: #555555; 
+            --toggle-thumb: #ffffff; 
+            --dot-inactive: rgba(229, 9, 20, 0.4); 
+            --spring-easing: cubic-bezier(0.1, 0.9, 0.2, 1); 
+            --smooth-easing: cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        html.light-mode {
+            --bg-color: #E6E7E9;
+            --text-color: #000000;
+            --header-bg: #CCCCCC;
+            --header-content-color: #484848; 
+            --card-overlay: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%);
+            --menu-bg: rgba(204, 204, 204, 0.95);
+            --menu-text: #000000;
+            --menu-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            --hover-bg: rgba(0, 0, 0, 0.05);
+            --border-color: rgba(0, 0, 0, 0.08);
+            --click-overlay: rgba(0, 0, 0, 0.2);
+            --match-bg: #ffffff;
+            --match-time-bg: #e0e0e0;
+            --toggle-bg: #34C759; 
+            --dot-inactive: rgba(229, 9, 20, 0.4); 
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent; 
+            -webkit-user-select: none; user-select: none;
+            -webkit-touch-callout: none;
+            /* كود منع السحب */
+            -webkit-user-drag: none;
+            user-drag: none;
+        }
+
+        html, body { height: 100%; overflow: hidden; overscroll-behavior-y: none; background-color: var(--bg-color); }
+        body {
+            color: var(--text-color);
+            transition: background-color 0.2s var(--smooth-easing), color 0.2s var(--smooth-easing);
+            display: flex; flex-direction: column;
+        }
+
+        img, a, .card, .hero-banner { pointer-events: none; }
+        a, .card, .hero-banner { pointer-events: auto; }
+
+        .view-container {
+            display: flex; flex-direction: column; height: 100%; width: 100%;
+            animation: viewEnter 0.3s var(--smooth-easing);
+            will-change: opacity, transform; 
+            position: relative;
+        }
+
+        @keyframes viewEnter {
+            from { opacity: 0.5; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 20px; background-color: var(--header-bg); z-index: 50;
+            border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+
+        .header-title { font-size: 1.1rem; font-weight: 700; color: var(--header-content-color); }
+        .header-actions { display: flex; align-items: center; gap: 20px; }
+
+        .icon-btn {
+            background: none; border: none; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; color: var(--header-content-color);
+            padding: 5px; transition: color 0.2s ease; will-change: transform; 
+        }
+
+        .icon-btn svg { fill: currentColor; width: 24px; height: 24px; transition: transform 0.2s var(--spring-easing); }
+        .icon-btn:active svg { transform: scale(0.75); }
+
+        .ptr-container {
+            position: absolute; top: 60px; left: 0; width: 100%; height: 0; 
+            display: flex; justify-content: center; align-items: visible;
+            z-index: 40; pointer-events: none;
+        }
+
+        .ptr-spinner {
+            width: 40px; height: 40px; border-radius: 50%; background-color: #FAFAFA; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); opacity: 0; margin-top: -40px; 
+            transform: scale(0.5) translateY(0); 
+            will-change: transform, opacity; display: flex; justify-content: center; align-items: center;
+        }
+
+        .spinner-svg { width: 24px; height: 24px; }
+        .spinner-svg circle {
+            stroke: #e50914; stroke-linecap: round; stroke-dasharray: 90, 150; stroke-dashoffset: -20;
+        }
+        
+        .ptr-spinner.spinning { animation: smoothSpin 0.8s linear infinite; }
+
+        @keyframes smoothSpin {
+            0% { transform: scale(1) translateY(60px) rotate(0deg); }
+            100% { transform: scale(1) translateY(60px) rotate(360deg); }
+        }
+
+        main { 
+            flex: 1; padding-bottom: 30px; overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; position: relative;
+            z-index: 20; background-color: var(--bg-color); 
+            transition: background-color 0.2s var(--smooth-easing);
+            will-change: opacity;
+        }
+
+        .hero-slider-wrapper {
+            display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+            scrollbar-width: none; padding: 15px 20px 10px 20px; gap: 15px; 
+            will-change: scroll-position; -webkit-overflow-scrolling: touch;
+        }
+        .hero-slider-wrapper::-webkit-scrollbar { display: none; }
+
+        .hero-banner {
+            position: relative; height: 240px; border-radius: 16px; overflow: hidden;
+            flex: 0 0 100%; scroll-snap-align: center;
+            background-color: #222; display: block; text-decoration: none;
+        }
+        
+        .hero-banner::after { content: ''; position: absolute; inset: 0; background-color: transparent; transition: background-color 0.2s ease-out; z-index: 10; pointer-events: none; }
+        .hero-banner:active::after { background-color: var(--click-overlay); transition: 0s; }
+        .hero-banner img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .hero-overlay {
+            position: absolute; inset: 0; 
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
+            display: flex; flex-direction: column; justify-content: flex-end; padding: 25px 20px; color: white; z-index: 2;
+        }
+        
+        .hero-content-wrapper { display: flex; justify-content: flex-start; align-items: center; width: 100%; gap: 15px; }
+        .hero-text { display: flex; flex-direction: column; }
+        .hero-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .hero-subtitle { font-size: 0.95rem; color: #dcdcdc; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+
+        .hero-play-btn {
+            width: 50px; height: 50px; border-radius: 50%; background-color: var(--primary-color);
+            display: flex; justify-content: center; align-items: center; flex-shrink: 0; position: relative; pointer-events: none; overflow: hidden;
+        }
+        .hero-play-btn svg { width: 25px; height: 25px; }
+
+        .banner-indicator { display: flex; justify-content: center; align-items: center; margin-bottom: 10px; gap: 8px; }
+        .banner-dot { width: 6px; height: 6px; border-radius: 50%; background-color: var(--dot-inactive); transition: all 0.2s var(--smooth-easing); }
+        .banner-dot.active { width: 10px; height: 10px; border-radius: 50%; background-color: var(--primary-color); }
+
+        .popup-menu {
+            position: fixed; top: 60px; left: 15px; background-color: var(--menu-bg);
+            color: var(--menu-text); border-radius: 16px; padding: 8px; min-width: 220px;
+            box-shadow: var(--menu-shadow); transform: scale(0.4) translate(-20px, -20px); 
+            transform-origin: top left; opacity: 0; pointer-events: none; transition: all 0.25s var(--spring-easing);
+            z-index: 100; border: 1px solid var(--border-color); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            will-change: transform, opacity; 
+        }
+        .popup-menu.active { transform: scale(1) translate(0, 0); opacity: 1; pointer-events: auto; }
+        .menu-item {
+            background: transparent; border: none; color: inherit; font-size: 1rem;
+            font-weight: 500; width: 100%; text-align: right; padding: 12px 14px;
+            border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;
+        }
+        .menu-item:active { background: var(--hover-bg); }
+        .overlay { position: fixed; inset: 0; z-index: 90; display: none; }
+        .overlay.active { display: block; }
+
+        section { margin-bottom: 18px; }
+        .section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 5px; padding: 0 5px; }
+        
+        .slider { display: flex; gap: 15px; overflow-x: auto; padding: 0 5px; scrollbar-width: none; will-change: scroll-position; }
+        .slider::-webkit-scrollbar { display: none; }
+        .slider::after { content: ''; flex: 0 0 5px; }
+
+        .card {
+            flex: 0 0 75vw; max-width: 320px; aspect-ratio: 16 / 10; border-radius: 14px;
+            position: relative; overflow: hidden; text-decoration: none; background-color: #222;
+        }
+        .card::after { content: ''; position: absolute; inset: 0; background-color: transparent; transition: background-color 0.2s; z-index: 10; pointer-events: none;}
+        .card:active::after { background-color: var(--click-overlay); transition: 0s; }
+        .card img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .card-overlay {
+            position: absolute; inset: 0; background: var(--card-overlay); display: flex;
+            flex-direction: column; justify-content: flex-end; align-items: center; padding: 10px; text-align: center; z-index: 2; 
+        }
+        .card-title { color: #ffffff; font-size: 1.0rem; font-weight: 700; margin-bottom: 2px; }
+        .card-subtitle { color: #e0e0e0; font-size: 0.9rem; }
+
+        .fav-btn {
+            position: absolute; top: 10px; left: 10px; background: transparent; border: none;
+            color: rgba(255, 255, 255, 0.7); cursor: pointer; z-index: 20; padding: 5px;
+            transition: transform 0.2s var(--spring-easing), color 0.2s; will-change: transform;
+        }
+        .fav-btn svg { width: 26px; height: 26px; fill: currentColor; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.8)); }
+        .fav-btn.active { color: var(--primary-color); }
+        .fav-btn:active { transform: scale(0.8); }
+
+        .fav-list { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+        .fav-list .card { width: 100%; max-width: 100%; flex: none; }
+        .empty-message { text-align: center; color: #888; margin-top: 50px; font-size: 1.1rem; font-weight: bold; }
+        
+        .settings-container { padding: 20px; }
+        .setting-box {
+            background-color: var(--header-bg); border-radius: 14px; padding: 18px 20px;
+            display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);
+            font-size: 1.1rem; font-weight: bold; position: relative; overflow: hidden; cursor: pointer;
+        }
+        .setting-box::after { content: ''; position: absolute; inset: 0; background-color: transparent; pointer-events: none; transition: background-color 0.2s; }
+        .setting-box:active::after { background-color: var(--click-overlay); transition: 0s; }
+        .setting-content { display: flex; align-items: center; gap: 12px; position: relative; z-index: 2; }
+        
+        .toggle-switch { width: 48px; height: 26px; background-color: var(--toggle-bg); border-radius: 30px; position: relative; transition: background-color 0.2s ease; z-index: 2; }
+        .toggle-thumb { width: 22px; height: 22px; background-color: var(--toggle-thumb); border-radius: 50%; position: absolute; top: 2px; right: 2px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: transform 0.2s var(--spring-easing); will-change: transform; }
+        html.light-mode .toggle-thumb { transform: translateX(-22px); }
+
+        .schedule-list { display: flex; flex-direction: column; gap: 15px; padding: 20px; }
+        .match-card {
+            background-color: var(--match-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 15px; text-decoration: none; color: var(--text-color); display: flex; flex-direction: column;
+            gap: 10px; position: relative; overflow: hidden;
+        }
+        .match-card::after { content: ''; position: absolute; inset: 0; background-color: transparent; pointer-events: none; transition: background-color 0.2s; z-index: 10; }
+        .match-card:active::after { background-color: var(--click-overlay); transition: 0s;}
+        .match-teams { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; font-weight: 700; position: relative; z-index: 2; }
+        .match-time { background-color: var(--match-time-bg); padding: 5px 12px; border-radius: 20px; font-size: 0.9rem; }
+        .match-channel { text-align: center; font-size: 0.85rem; color: #888; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 5px; position: relative; z-index: 2; }
+
+    </style>
+</head>
+<body class="no-transition">
+
+    <div id="homeView" class="view-container">
+        <header>
+            <div class="header-title">IQ TV</div>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="openView('favView')">
+                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </button>
+                <button class="icon-btn" id="menuToggleBtn">
+                    <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </button>
+            </div>
+        </header>
+        
+        <div class="ptr-container">
+            <div class="ptr-spinner">
+                <svg class="spinner-svg" viewBox="0 0 50 50">
+                    <circle cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+                </svg>
+            </div>
+        </div>
+
+        <main id="mainContent">
+            <div class="hero-slider-wrapper" id="heroSliderWrapper"></div>
+            <div class="banner-indicator" id="heroIndicator"></div>
+
+            <section><h2 class="section-title">القنوات الرياضية</h2><div class="slider" id="sportsSlider"></div></section>
+            <section><h2 class="section-title">المسلسلات</h2><div class="slider" id="seriesSlider"></div></section>
+            <section><h2 class="section-title">الأفلام</h2><div class="slider" id="moviesSlider"></div></section>
+            <section><h2 class="section-title">الوثائقيات</h2><div class="slider" id="docsSlider"></div></section>
+            <section><h2 class="section-title">قنوات الأطفال</h2><div class="slider" id="kidsSlider"></div></section>
+        </main>
+    </div>
+
+    <div id="favView" class="view-container" style="display: none;">
+        <header>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="goBack()"><svg viewBox="0 0 24 24"><path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg></button>
+            </div>
+            <div class="header-title">المفضلة</div>
+            <div style="width: 34px;"></div>
+        </header>
+        <div class="ptr-container"><div class="ptr-spinner"><svg class="spinner-svg" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg></div></div>
+        <main><div class="fav-list" id="favList"></div></main>
+    </div>
+
+    <div id="settingsView" class="view-container" style="display: none;">
+        <header>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="goBack()"><svg viewBox="0 0 24 24"><path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg></button>
+            </div>
+            <div class="header-title">الإعدادات</div>
+            <div style="width: 34px;"></div>
+        </header>
+        <main class="settings-container">
+            <div class="setting-box" id="themeSwitchBtn">
+                <div class="setting-content">
+                    <svg style="width: 24px; height: 24px; fill: currentColor;" viewBox="0 0 24 24">
+                        <path d="M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69zM12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/>
+                    </svg>
+                    <span id="themeText">الوضع النهاري</span>
+                </div>
+                <div class="toggle-switch"><div class="toggle-thumb"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="scheduleView" class="view-container" style="display: none;">
+        <header>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="goBack()"><svg viewBox="0 0 24 24"><path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg></button>
+            </div>
+            <div class="header-title">جدول المباريات</div>
+            <div style="width: 34px;"></div>
+        </header>
+        <div class="ptr-container"><div class="ptr-spinner"><svg class="spinner-svg" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg></div></div>
+        <main><div class="schedule-list" id="scheduleList"></div></main>
+    </div>
+
+    <div class="overlay" id="menuOverlay"></div>
+    <div class="popup-menu" id="mainMenu">
+        <button class="menu-item" onclick="openView('settingsView'); closeMenu();">الإعدادات <svg viewBox="0 0 24 24" style="width: 20px; fill: currentColor;"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></button>
+        <button class="menu-item" onclick="openView('scheduleView'); closeMenu();">المباريات <svg viewBox="0 0 24 24" style="width: 20px; fill: currentColor;"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg></button>
+    </div>
+
+    <script>
+        const bannersData = [
+            { id: "hero1", title: "Bein Sports 1", subtitle: "القناة الاولى", img: "https://i.suar.me/n4gLw/m", link: "watch.html?id=hero_1" },
+            { id: "hero2", title: "سينمانا أكشن", subtitle: "إثارة بلا توقف", img: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=hero_2" }
+        ];
+
+        const appData = [
+            { id: "ch1", category: "sports", title: "Bein Sport 1", subtitle: "القناة الاولى", img: "https://i.suar.me/n4gLw/m", link: "go:a" },
+            { id: "ch2", category: "sports", title: "Bein Sport 2", subtitle: "القناة الثانية", img: "https://i.suar.me/n4gLw/m", link: "watch.html?id=bein_sport_2" },
+            { id: "ch3", category: "sports", title: "Bein Sport 3", subtitle: "القناة الثالثة", img: "https://i.suar.me/mpv6N/m", link: "watch.html?id=bein_sport_1" },
+            { id: "ch4", category: "sports", title: "Bein Sport 4", subtitle: "القناة الرابعة", img: "https://i.suar.me/n4gLw/m", link: "watch.html?id=bein_sport_1" },
+            { id: "ch5", category: "sports", title: "Bein Sport 5", subtitle: "القناة الخامسة", img: "https://i.suar.me/n4gLw/m", link: "go:a" },
+            { id: "ch6", category: "sports", title: "Bein Sport 6", subtitle: "القناة السادسة", img: "https://i.suar.me/n4gLw/m", link: "watch.html?id=bein_sport_1" },
+            { id: "ch7", category: "sports", title: "Bein Sport 7", subtitle: "القناة السابعة", img: "https://i.suar.me/n4gLw/m", link: "go:a" },
+            
+            { id: "ch11", category: "movies", title: "سينمانا أكشن", subtitle: "إثارة بلا توقف", img: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=cinemana_action_1" },
+            { id: "ch22", category: "movies", title: "أفلام أجنبية", subtitle: "أحدث الإصدارات", img: "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=movies_foreign_1" },
+            
+            { id: "ch111", category: "series", title: "مسلسلات أجنبية", subtitle: "مواسم كاملة", img: "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=series_foreign_1" },
+            { id: "ch222", category: "series", title: "دراما عربية", subtitle: "أقوى الإنتاجات", img: "https://images.unsplash.com/photo-1603539843393-1d6bc0b91e98?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=series_arabic_1" },
+            
+            { id: "cha", category: "docs", title: "ناشونال جيوغرافيك", subtitle: "عالم الطبيعة", img: "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=documentary_1" },
+            { id: "chc", category: "kids", title: "سبيستون", subtitle: "قناة شباب المستقبل", img: "https://images.unsplash.com/photo-1585644177255-89f5c490a6ea?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", link: "watch.html?id=kids_spacetoon" }
+        ];
+
+        const matches = [];
+        let favorites = JSON.parse(localStorage.getItem('favChannels')) || [];
+
+        function generateCard(item) {
+            const isFav = favorites.includes(item.id) ? 'active' : '';
+            return `
+                <a href="${item.link}" class="card" data-id="${item.id}" draggable="false">
+                    <button class="fav-btn ${isFav}" onclick="toggleFav(event, '${item.id}')">
+                        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    </button>
+                    <img src="${item.renderImg}" alt="${item.title}" draggable="false">
+                    <div class="card-overlay">
+                        <h3 class="card-title">${item.title}</h3>
+                        <p class="card-subtitle">${item.subtitle}</p>
+                    </div>
+                </a>
+            `;
+        }
+
+        function renderBanners() {
+            const wrapper = document.getElementById('heroSliderWrapper');
+            const indicator = document.getElementById('heroIndicator');
+
+            wrapper.innerHTML = bannersData.map(banner => `
+                <a href="${banner.link}" class="hero-banner" draggable="false">
+                    <img src="${banner.renderImg || banner.img}" alt="${banner.title}" draggable="false">
+                    <div class="hero-overlay">
+                        <div class="hero-content-wrapper">
+                            <div class="hero-play-btn">
+                                <svg viewBox="0 0 24 24"><path fill="#ffffff" d="M7 5.86v12.28c0 1.25 1.44 1.95 2.41 1.18l8.36-6.14c.83-.61.83-1.87 0-2.48L9.41 4.68C8.44 3.91 7 4.61 7 5.86z"/></svg>
+                            </div>
+                            <div class="hero-text"><h2 class="hero-title">${banner.title}</h2><p class="hero-subtitle">${banner.subtitle}</p></div>
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+
+            indicator.innerHTML = bannersData.map((_, index) => `<div class="banner-dot ${index === 0 ? 'active' : ''}"></div>`).join('');
+
+            const banners = document.querySelectorAll('.hero-banner');
+            const dots = document.querySelectorAll('.banner-dot');
+            const observerOptions = { root: wrapper, rootMargin: '0px', threshold: 0.6 };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const index = Array.from(banners).indexOf(entry.target);
+                        dots.forEach((dot, i) => { if (i === index) dot.classList.add('active'); else dot.classList.remove('active'); });
+                    }
+                });
+            }, observerOptions);
+
+            banners.forEach(banner => observer.observe(banner));
+        }
+
+        function renderSliders() {
+            document.getElementById('sportsSlider').innerHTML = appData.filter(i => i.category === 'sports').map(generateCard).join('');
+            document.getElementById('seriesSlider').innerHTML = appData.filter(i => i.category === 'series').map(generateCard).join('');
+            document.getElementById('moviesSlider').innerHTML = appData.filter(i => i.category === 'movies').map(generateCard).join('');
+            document.getElementById('docsSlider').innerHTML = appData.filter(i => i.category === 'docs').map(generateCard).join('');
+            document.getElementById('kidsSlider').innerHTML = appData.filter(i => i.category === 'kids').map(generateCard).join('');
+        }
+
+        function fallbackImages() {
+            bannersData.forEach(item => item.renderImg = item.img);
+            appData.forEach(item => item.renderImg = item.img);
+        }
+
+        async function initApp() {
+            // رسم الواجهة فورا بدون تأخير (هذا يقضي على الشاشة السوداء الفارغة)
+            fallbackImages();
+            renderBanners();
+            renderSliders();
+
+            if (!history.state) { history.replaceState({ view: 'homeView' }, '', '#home'); }
+
+            // إرجاع الأنيميشن للعمل بعد فتح التطبيق بشكل كامل وثابت
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    document.body.classList.remove('no-transition');
+                });
+            });
+
+            // جلب الصور المخبأة في الكاش لزيادة السرعة لاحقاً
+            if ('caches' in window) {
+                try {
+                    const cache = await caches.open('app-images-v1');
+                    
+                    for (let i = 0; i < bannersData.length; i++) {
+                        const res = await cache.match(bannersData[i].img);
+                        if (res) {
+                            bannersData[i].renderImg = URL.createObjectURL(await res.blob());
+                            const imgEls = document.querySelectorAll(`.hero-banner[href="${bannersData[i].link}"] img`);
+                            imgEls.forEach(img => img.src = bannersData[i].renderImg);
+                        } else { 
+                            fetch(bannersData[i].img).then(r => { if(r.ok) cache.put(bannersData[i].img, r.clone()); }); 
+                        }
+                    }
+                    
+                    for (let i = 0; i < appData.length; i++) {
+                        const res = await cache.match(appData[i].img);
+                        if (res) {
+                            appData[i].renderImg = URL.createObjectURL(await res.blob());
+                            const imgEls = document.querySelectorAll(`.card[data-id="${appData[i].id}"] img`);
+                            imgEls.forEach(img => img.src = appData[i].renderImg);
+                        } else { 
+                            fetch(appData[i].img).then(r => { if(r.ok) cache.put(appData[i].img, r.clone()); }); 
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // --- نظام السحب للتحديث المدمج ---
+        function setupPullToRefresh(viewId) {
+            const viewElement = document.getElementById(viewId);
+            if (!viewElement) return;
+
+            const mainEl = viewElement.querySelector('main');
+            const spinnerEl = viewElement.querySelector('.ptr-spinner');
+            if (!mainEl || !spinnerEl) return;
+
+            let startY = 0;
+            let currentPullDistance = 0;
+            let isPulling = false;
+            let isRefreshing = false;
+            const PULL_THRESHOLD = 65; 
+
+            mainEl.addEventListener('touchstart', e => {
+                if (mainEl.scrollTop <= 0 && !isRefreshing) {
+                    startY = e.touches[0].clientY;
+                    isPulling = true;
+                    spinnerEl.style.transition = 'none'; 
+                    spinnerEl.style.opacity = '1';
+                    spinnerEl.classList.remove('spinning');
+                }
+            }, { passive: true });
+
+            mainEl.addEventListener('touchmove', e => {
+                if (!isPulling) return;
+                const y = e.touches[0].clientY;
+                currentPullDistance = (y - startY) * 0.5;
+
+                if (currentPullDistance > 0 && mainEl.scrollTop <= 0) {
+                    if (e.cancelable) e.preventDefault(); 
+                    const rotation = currentPullDistance * 4; 
+                    const scale = Math.min(1, 0.4 + (currentPullDistance / PULL_THRESHOLD) * 0.6);
+                    const translateY = Math.min(currentPullDistance, PULL_THRESHOLD + 10); 
+                    spinnerEl.style.transform = `scale(${scale}) translateY(${translateY}px) rotate(${rotation}deg)`;
+                } else if (currentPullDistance < 0) {
+                    isPulling = false;
+                    spinnerEl.style.opacity = '0';
+                    spinnerEl.style.transform = `scale(0.5) translateY(0)`;
+                }
+            }, { passive: false });
+
+            mainEl.addEventListener('touchend', () => {
+                if (!isPulling) return;
+                isPulling = false;
+
+                if (currentPullDistance >= PULL_THRESHOLD) {
+                    isRefreshing = true;
+                    spinnerEl.classList.add('spinning');
+                    spinnerEl.style.transition = 'transform 0.3s cubic-bezier(0.1, 0.9, 0.2, 1)';
+                    spinnerEl.style.transform = `scale(1) translateY(60px)`; 
+
+                    if (navigator.vibrate) navigator.vibrate(40);
+
+                    setTimeout(() => {
+                        mainEl.style.transition = 'opacity 0.15s ease-out';
+                        mainEl.style.opacity = '0';
+
+                        setTimeout(() => {
+                            initApp(); 
+                            if (viewId === 'favView') renderFavorites(); 
+                            if (viewId === 'scheduleView') renderSchedule(); 
+                            
+                            const allSliders = mainEl.querySelectorAll('.slider, .hero-slider-wrapper');
+                            allSliders.forEach(slider => { slider.scrollTo({ left: 0, behavior: 'auto' }); });
+
+                            mainEl.style.transition = 'opacity 0.2s ease-in';
+                            mainEl.style.opacity = '1';
+                            
+                            spinnerEl.style.transition = 'transform 0.3s ease-in, opacity 0.2s ease';
+                            spinnerEl.style.transform = `scale(0.5) translateY(-20px)`;
+                            spinnerEl.style.opacity = '0';
+                            
+                            setTimeout(() => {
+                                spinnerEl.classList.remove('spinning');
+                                isRefreshing = false;
+                            }, 300); 
+
+                        }, 150); 
+
+                    }, 1000); 
+
+                } else {
+                    spinnerEl.style.transition = 'opacity 0.2s, transform 0.2s'; 
+                    spinnerEl.style.opacity = '0';
+                    spinnerEl.style.transform = `scale(0.5) translateY(0)`;
+                }
+                currentPullDistance = 0;
+            });
+        }
+
+        setupPullToRefresh('homeView');
+        setupPullToRefresh('favView');
+        setupPullToRefresh('scheduleView');
+
+        function showViewOnly(viewId) {
+            document.querySelectorAll('.view-container').forEach(view => view.style.display = 'none');
+            const targetView = document.getElementById(viewId);
+            if(targetView) { targetView.style.display = 'flex'; const mainArea = targetView.querySelector('main'); if (mainArea) mainArea.scrollTop = 0; }
+            if (viewId === 'favView') renderFavorites();
+            if (viewId === 'scheduleView') renderSchedule();
+        }
+
+        function openView(viewId) { history.pushState({ view: viewId }, '', '#' + viewId); showViewOnly(viewId); }
+        function goBack() { history.back(); } 
+        window.addEventListener('popstate', (e) => { const view = e.state ? e.state.view : 'homeView'; showViewOnly(view); });
+
+        function toggleFav(event, id) {
+            event.preventDefault(); event.stopPropagation();
+            if (favorites.includes(id)) { favorites = favorites.filter(favId => favId !== id); } else { favorites.push(id); }
+            localStorage.setItem('favChannels', JSON.stringify(favorites));
+            document.querySelectorAll(`[data-id="${id}"] .fav-btn`).forEach(btn => btn.classList.toggle('active'));
+            if (document.getElementById('favView').style.display === 'flex') { renderFavorites(); }
+        }
+
+        function renderFavorites() {
+            const favList = document.getElementById('favList');
+            const favItems = appData.filter(item => favorites.includes(item.id));
+            if (favItems.length === 0) { favList.innerHTML = '<div class="empty-message">لا توجد قنوات مفضلة حالياً</div>'; } 
+            else { favList.innerHTML = favItems.map(generateCard).join(''); }
+        }
+
+        function renderSchedule() {
+            const scheduleList = document.getElementById('scheduleList');
+            if (matches.length === 0) { scheduleList.innerHTML = '<div class="empty-message">لا توجد مباريات لهذا اليوم</div>'; return; }
+            scheduleList.innerHTML = matches.map(match => `
+                <a href="${match.link}" class="match-card">
+                    <div class="match-teams"><span style="flex:1;text-align:center">${match.teamA}</span><span class="match-time">${match.time}</span><span style="flex:1;text-align:center">${match.teamB}</span></div>
+                    <div class="match-channel">${match.channel}</div>
+                </a>`).join('');
+        }
+
+        const menuToggleBtn = document.getElementById('menuToggleBtn');
+        const mainMenu = document.getElementById('mainMenu');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const themeSwitchBtn = document.getElementById('themeSwitchBtn');
+        const themeText = document.getElementById('themeText');
+
+        function closeMenu() { mainMenu.classList.remove('active'); menuOverlay.classList.remove('active'); }
+        menuToggleBtn.addEventListener('click', () => { mainMenu.classList.add('active'); menuOverlay.classList.add('active'); });
+        menuOverlay.addEventListener('click', closeMenu);
+
+        if (document.documentElement.classList.contains('light-mode')) { themeText.textContent = 'الوضع الليلي'; }
+        
+        themeSwitchBtn.addEventListener('click', () => {
+            document.documentElement.classList.toggle('light-mode');
+            if (document.documentElement.classList.contains('light-mode')) { 
+                themeText.textContent = 'الوضع الليلي'; 
+                localStorage.setItem('theme', 'light'); 
+                document.documentElement.style.setProperty('background-color', '#E6E7E9', 'important');
+                document.getElementById('theme-color-meta').setAttribute('content', '#E6E7E9');
+            } else { 
+                themeText.textContent = 'الوضع النهاري'; 
+                localStorage.setItem('theme', 'dark'); 
+                document.documentElement.style.setProperty('background-color', '#000000', 'important');
+                document.getElementById('theme-color-meta').setAttribute('content', '#000000');
+            }
+        });
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        // الأهم: تشغيل التطبيق ورسم الواجهة فوراً بمجرد وصول المتصفح إلى هذا السطر (بدون أي تأخير)
+        initApp();
+
+    </script>
+</body>
+</html>
